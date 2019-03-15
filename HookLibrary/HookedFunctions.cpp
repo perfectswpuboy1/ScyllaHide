@@ -758,42 +758,38 @@ NTSTATUS NTAPI HookedNtSetDebugFilterState(ULONG ComponentId, ULONG Level, BOOLE
 
 void FilterHwndList(HWND * phwndFirst, PUINT pcHwndNeeded)
 {
-    if (!HookDllData.EnableProtectProcessId)
-        return;
+    DWORD dwProcessId;
 
-    for (UINT i = 0; i < *pcHwndNeeded; i++)
+    if (HookDllData.EnableProtectProcessId == TRUE)
     {
-        if (phwndFirst[i] != nullptr)
+        for (UINT i = 0; i < *pcHwndNeeded; i++)
         {
-            //GetWindowThreadProcessId(phwndFirst[i], &dwProcessId);
-            ULONG dwProcessId = HookDllData.dNtUserQueryWindow != nullptr
-                ? HandleToULong(HookDllData.dNtUserQueryWindow(phwndFirst[i], WindowProcess))
-                : HandleToULong(HookDllData.NtUserQueryWindow(phwndFirst[i], WindowProcess));
-
-            if (dwProcessId == HookDllData.dwProtectedProcessId)
+            if (phwndFirst[i] != 0)
             {
-                if (i == 0)
+                //GetWindowThreadProcessId(phwndFirst[i], &dwProcessId);
+				if (HookDllData.dNtUserQueryWindow)
+				{
+					dwProcessId = HandleToULong(HookDllData.dNtUserQueryWindow(phwndFirst[i], WindowProcess));
+				}
+				else
+				{
+					dwProcessId = HandleToULong(HookDllData.NtUserQueryWindow(phwndFirst[i], WindowProcess));
+				}
+                if (dwProcessId == HookDllData.dwProtectedProcessId)
                 {
-                    // Find the first HWND that belongs to a different process (i + 1, i + 2... may still be ours)
-                    for (UINT j = i + 1; j < *pcHwndNeeded; j++)
+                    if (i == 0)
                     {
-                        dwProcessId = HookDllData.dNtUserQueryWindow != nullptr
-                            ? HandleToULong(HookDllData.dNtUserQueryWindow(phwndFirst[j], WindowProcess))
-                            : HandleToULong(HookDllData.NtUserQueryWindow(phwndFirst[j], WindowProcess));
-                        if (dwProcessId != HookDllData.dwProtectedProcessId)
-                        {
-                            phwndFirst[i] = phwndFirst[j];
-                            break;
-                        }
+                        phwndFirst[i] = phwndFirst[i + 1];
                     }
-                }
-                else
-                {
-                    phwndFirst[i] = phwndFirst[i - 1]; //just override with previous
+                    else
+                    {
+                        phwndFirst[i] = phwndFirst[i - 1]; //just override with previous
+                    }
                 }
             }
         }
     }
+
 }
 
 NTSTATUS NTAPI HookedNtUserBuildHwndList(HDESK hdesk, HWND hwndNext, BOOL fEnumChildren, DWORD idThread, UINT cHwndMax, HWND *phwndFirst, PUINT pcHwndNeeded)
